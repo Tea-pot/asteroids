@@ -252,11 +252,14 @@ function start(e) {
 }
 
 function mouseMove(e) {
-  mouse.set(e.clientX, e.clientY);
+  if (!gamepad) {
+    mouse.set(e.clientX, e.clientY);
+  }
 }
 function touchMove(e) {
-  mouse.set(e.touches[0].clientX, e.touches[0].clientY);
-  console.log(e.touches[0].clientX, e.touches[0].clientY);
+  if (!gamepad) {
+    mouse.set(e.touches[0].clientX, e.touches[0].clientY);
+  }
 }
 function mouseDown(e) {
   isMouseDown = true;
@@ -277,6 +280,13 @@ function loop() {
 
   var now = new Date().getTime();
 
+  // Check for START button press on menu screen
+  var gp = updateGamepad();
+  if (gp && !isPlay && gp.buttons[9] && gp.buttons[9].pressed) {
+    play();
+    dom.menu.style.display = 'none';
+  }
+
   // Spawn Debri
   if (now - debriLastSpawn > 300) {
     debris.push(new Debri(canvasWidth));
@@ -287,8 +297,8 @@ function loop() {
   debris.eachUpdate();
 
   if (isPlay) {
-    // Poll gamepad state
-    var gp = updateGamepad();
+    // Poll gamepad state (already polled above for START button)
+    if (!gp) gp = updateGamepad();
 
     // Spawn
 
@@ -317,6 +327,9 @@ function loop() {
           // Clamp to screen bounds
           mouse.x = Math.max(0, Math.min(canvasWidth, mouse.x));
           mouse.y = Math.max(0, Math.min(canvasHeight, mouse.y));
+        } else {
+          // Keep mouse at ship position when stick is centered
+          mouse.set(ship.x, ship.y);
         }
 
         // Fire with RT (button 7) or A button (button 0)
@@ -434,26 +447,8 @@ function gameOver() {
   ship.destroy();
   isPlay = false;
   dom.title.innerHTML = 'GAME OVER!';
-  dom.message.innerHTML = 'YOUR SCORE ' + score + ' POINTS<br />';
-  dom.message.appendChild(tweetLink());
+  dom.message.innerHTML = 'YOUR SCORE ' + score + ' POINTS';
   dom.menu.style.display = 'block';
-}
-
-function tweetLink() {
-  var exc = score < 1000 ? '...' : score > 3000 ? '!!!' : '!';
-  if (!dom.tweet) {
-    dom.tweet = document.createElement('a');
-    dom.tweet.id = 'tweet';
-    dom.tweet.innerHTML = 'TWEET YOUR SCORE';
-  }
-  dom.tweet.href =
-    'https://twitter.com/intent/tweet?url=https://codepen.io/akm2/pen/eYYyELr&text=SCORE ' +
-    score +
-    ' PTS' +
-    exc +
-    ' - ASTEROIDS';
-  dom.tweet.target = '_blank';
-  return dom.tweet;
 }
 
 // Perform path collision detection.
