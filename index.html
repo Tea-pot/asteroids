@@ -13,6 +13,21 @@
 <body>
     <div id='container'>
         <canvas id='c'></canvas>
+        
+        <!-- Virtual Mobile Controls -->
+        <div id='mobile-controls'>
+            <!-- Left: Virtual Joystick -->
+            <div id='joystick-zone' class='control-zone left'>
+                <div id='joystick-base'></div>
+                <div id='joystick-stick'></div>
+            </div>
+            
+            <!-- Right: Fire Button -->
+            <div id='fire-zone' class='control-zone right'>
+                <button id='fire-button'>A</button>
+            </div>
+        </div>
+        
         <ul id='hud'>
             <li class='fullscreen-btn'>
                 <button id='fullscreen-toggle' title='Toggle Fullscreen'>⛶</button>

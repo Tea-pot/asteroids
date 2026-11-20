@@ -155,6 +155,11 @@ var touchStartX = 0; // Starting X coordinate of touch
 var touchStartY = 0; // Starting Y coordinate of touch
 var touchStartTime = 0; // Timestamp when touch began
 var touchMoved = false; // Flag to distinguish tap from drag
+// Virtual joystick state
+var joystickActive = false; // Is joystick being used
+var joystickCenter = { x: 0, y: 0 }; // Center position of joystick
+var joystickRadius = 60; // Max distance from center (half of base size: 120/2)
+var joystickCurrentPos = { x: 0, y: 0 }; // Current stick offset from center
 var dom = {
   menu: null,
   title: null,
@@ -238,6 +243,9 @@ function init() {
 
   window.addEventListener('gamepadconnected', gamepadConnected, false);
   window.addEventListener('gamepaddisconnected', gamepadDisconnected, false);
+
+  // Initialize mobile virtual controls
+  initMobileControls();
 
   debris = new Collection();
   for (var i = 0; i < 30; i++) {
@@ -388,6 +396,105 @@ function lockOrientation() {
     screen.orientation.lock('landscape').catch(function(err) {
       console.log('Orientation lock not supported or failed:', err);
     });
+  }
+}
+
+//------------------------------------
+// MOBILE VIRTUAL CONTROLS
+//------------------------------------
+
+function initMobileControls() {
+  var joystickZone = document.getElementById('joystick-zone');
+  var fireButton = document.getElementById('fire-button');
+  
+  if (!joystickZone || !fireButton) return; // Not on mobile or elements missing
+  
+  var joystickBase = document.getElementById('joystick-base');
+  var joystickStick = document.getElementById('joystick-stick');
+  
+  // Joystick touch handlers
+  joystickZone.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    joystickActive = true;
+    isTouchDevice = true;
+    
+    // Set joystick center
+    var rect = joystickBase.getBoundingClientRect();
+    joystickCenter.x = rect.left + rect.width / 2;
+    joystickCenter.y = rect.top + rect.height / 2;
+    
+    handleJoystickMove(e);
+  }, false);
+  
+  joystickZone.addEventListener('touchmove', function(e) {
+    e.preventDefault();
+    if (joystickActive) handleJoystickMove(e);
+  }, false);
+  
+  joystickZone.addEventListener('touchend', function(e) {
+    e.preventDefault();
+    joystickActive = false;
+    
+    // Reset joystick stick to center position
+    joystickStick.style.left = '30px'; // (120 - 60) / 2
+    joystickStick.style.top = '60px';  // 30 + 30 (base top offset + half)
+    joystickCurrentPos.x = 0;
+    joystickCurrentPos.y = 0;
+    
+    // Reset ship target to current position
+    if (ship) mouse.set(ship.x, ship.y);
+  }, false);
+  
+  // Fire button handlers
+  fireButton.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (ship) ship.fire(beams);
+  }, false);
+  
+  // Prevent fire button from interfering with game
+  fireButton.addEventListener('touchend', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }, false);
+}
+
+function handleJoystickMove(e) {
+  var touch = e.touches[0];
+  var dx = touch.clientX - joystickCenter.x;
+  var dy = touch.clientY - joystickCenter.y;
+  var distance = Math.sqrt(dx * dx + dy * dy);
+  
+  // Clamp to joystick radius
+  if (distance > joystickRadius) {
+    dx = (dx / distance) * joystickRadius;
+    dy = (dy / distance) * joystickRadius;
+  }
+  
+  // Store current joystick position
+  joystickCurrentPos.x = dx;
+  joystickCurrentPos.y = dy;
+  
+  // Update joystick stick visual position
+  var joystickStick = document.getElementById('joystick-stick');
+  joystickStick.style.left = (30 + dx) + 'px'; // 30 is center offset (120-60)/2
+  joystickStick.style.top = (60 + dy) + 'px';  // 60 is center offset (30 base top + 30)
+  
+  // Calculate ship movement
+  // Normalize to -1..1 range
+  var normalizedX = dx / joystickRadius;
+  var normalizedY = dy / joystickRadius;
+  
+  // Update ship target position with smooth movement
+  if (ship) {
+    // Move ship in direction of joystick with scaled distance
+    var moveSpeed = 150; // Pixels to move at full joystick deflection
+    mouse.x = ship.x + normalizedX * moveSpeed;
+    mouse.y = ship.y + normalizedY * moveSpeed;
+    
+    // Clamp to screen bounds
+    mouse.x = Math.max(0, Math.min(canvasWidth, mouse.x));
+    mouse.y = Math.max(0, Math.min(canvasHeight, mouse.y));
   }
 }
 
