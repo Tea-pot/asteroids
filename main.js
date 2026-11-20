@@ -158,6 +158,37 @@ var dom = {
   score: null,
   wepon: null
 };
+var gamepad = null;
+var gamepadIndex = null;
+var gamepadDeadzone = 0.15;
+
+//------------------------------------
+// GAMEPAD SUPPORT
+//------------------------------------
+
+function gamepadConnected(e) {
+  gamepad = e.gamepad;
+  gamepadIndex = e.gamepad.index;
+  console.log('Gamepad connected:', gamepad.id);
+}
+
+function gamepadDisconnected(e) {
+  if (gamepadIndex === e.gamepad.index) {
+    gamepad = null;
+    gamepadIndex = null;
+    console.log('Gamepad disconnected');
+  }
+}
+
+function updateGamepad() {
+  if (gamepadIndex === null) return null;
+  var gamepads = navigator.getGamepads();
+  return gamepads[gamepadIndex];
+}
+
+function applyDeadzone(value) {
+  return Math.abs(value) < gamepadDeadzone ? 0 : value;
+}
 
 //------------------------------------
 // INITIALIZE
@@ -188,6 +219,9 @@ function init() {
   canvas.addEventListener('touchmove', touchMove, false);
   canvas.addEventListener('touchstart', mouseDown, false);
   canvas.addEventListener('touchend', mouseUp, false);
+
+  window.addEventListener('gamepadconnected', gamepadConnected, false);
+  window.addEventListener('gamepaddisconnected', gamepadDisconnected, false);
 
   debris = new Collection();
   for (var i = 0; i < 30; i++) {
@@ -253,6 +287,9 @@ function loop() {
   debris.eachUpdate();
 
   if (isPlay) {
+    // Poll gamepad state
+    var gp = updateGamepad();
+
     // Spawn
 
     if (now - asteroidLastSpawn > ASTEROID_SPAWN_TIME && asteroids.length < ASTEROID_MAX_NUM) {
@@ -267,7 +304,30 @@ function loop() {
     // Update
 
     if (ship) {
-      if (isMouseDown) ship.fire(beams);
+      if (gp) {
+        // Gamepad control
+        var leftX = applyDeadzone(gp.axes[0]);
+        var leftY = applyDeadzone(gp.axes[1]);
+
+        // Update mouse position based on left stick
+        if (leftX !== 0 || leftY !== 0) {
+          mouse.x += leftX * 8;
+          mouse.y += leftY * 8;
+
+          // Clamp to screen bounds
+          mouse.x = Math.max(0, Math.min(canvasWidth, mouse.x));
+          mouse.y = Math.max(0, Math.min(canvasHeight, mouse.y));
+        }
+
+        // Fire with RT (button 7) or A button (button 0)
+        if (gp.buttons[0].pressed || gp.buttons[7].pressed) {
+          ship.fire(beams);
+        }
+      } else {
+        // Mouse/touch control
+        if (isMouseDown) ship.fire(beams);
+      }
+
       ship.update(mouse);
     }
 
