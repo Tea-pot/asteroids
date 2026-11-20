@@ -149,6 +149,12 @@ var debriLastSpawn = 0;
 var fieldRange;
 var score = 0;
 var isPlay = false;
+// Touch control state variables
+var isTouchDevice = false; // Tracks if user is using touch (vs mouse)
+var touchStartX = 0; // Starting X coordinate of touch
+var touchStartY = 0; // Starting Y coordinate of touch
+var touchStartTime = 0; // Timestamp when touch began
+var touchMoved = false; // Flag to distinguish tap from drag
 var dom = {
   menu: null,
   title: null,
@@ -225,9 +231,10 @@ function init() {
   canvas.addEventListener('mouseup', mouseUp, false);
   canvas.addEventListener('click', click, false);
 
+  // Touch event listeners - separate from mouse for tap/drag detection
+  canvas.addEventListener('touchstart', touchStart, false);
   canvas.addEventListener('touchmove', touchMove, false);
-  canvas.addEventListener('touchstart', mouseDown, false);
-  canvas.addEventListener('touchend', mouseUp, false);
+  canvas.addEventListener('touchend', touchEnd, false);
 
   window.addEventListener('gamepadconnected', gamepadConnected, false);
   window.addEventListener('gamepaddisconnected', gamepadDisconnected, false);
@@ -271,19 +278,71 @@ function mouseMove(e) {
     mouse.set(e.clientX, e.clientY);
   }
 }
-function touchMove(e) {
-  if (!gamepad) {
-    mouse.set(e.touches[0].clientX, e.touches[0].clientY);
-  }
-}
+
 function mouseDown(e) {
   isMouseDown = true;
 }
+
 function mouseUp(e) {
   isMouseDown = false;
 }
+
 function click(e) {
   if (ship) ship.fire(beams);
+}
+
+//------------------------------------
+// TOUCH EVENT HANDLERS
+//------------------------------------
+
+function touchStart(e) {
+  e.preventDefault(); // Prevent mouse event emulation
+  if (!gamepad) {
+    isTouchDevice = true;
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    touchStartTime = Date.now();
+    touchMoved = false;
+    // Set initial ship target position
+    mouse.set(touchStartX, touchStartY);
+  }
+}
+
+function touchMove(e) {
+  e.preventDefault(); // Prevent scrolling and mouse event emulation
+  if (!gamepad) {
+    var currentX = e.touches[0].clientX;
+    var currentY = e.touches[0].clientY;
+    
+    // Calculate distance moved from touch start
+    var dx = currentX - touchStartX;
+    var dy = currentY - touchStartY;
+    var distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // If moved more than 10px, it's a drag not a tap
+    if (distance > 10) {
+      touchMoved = true;
+    }
+    
+    // Update ship target position
+    mouse.set(currentX, currentY);
+  }
+}
+
+function touchEnd(e) {
+  e.preventDefault(); // Prevent mouse event emulation
+  if (!gamepad) {
+    var touchDuration = Date.now() - touchStartTime;
+    
+    // TAP detected: quick touch (< 200ms) without significant movement
+    // This fires the weapon once
+    if (!touchMoved && touchDuration < 200) {
+      if (ship) ship.fire(beams);
+    }
+    
+    // Reset touch state for next interaction
+    touchMoved = false;
+  }
 }
 
 //------------------------------------
@@ -421,8 +480,9 @@ function loop() {
           ship.fire(beams);
         }
       } else {
-        // Mouse/touch control
-        if (isMouseDown) ship.fire(beams);
+        // Mouse control - continuous fire on hold
+        // Touch devices use tap-to-fire (handled in touchEnd), not continuous
+        if (isMouseDown && !isTouchDevice) ship.fire(beams);
       }
 
       ship.update(mouse);
