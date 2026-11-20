@@ -7,6 +7,8 @@ body {
     color: #fff;
     font-size: 12px;
     font-family: Arial, Helvetica, sans-serif;
+    overscroll-behavior: none;
+    touch-action: pan-x pan-y;
 }
 #c {
     cursor: crosshair;
@@ -93,4 +95,114 @@ a#tweet:hover {
 
 #ammo-chart {
     display: block;
+}
+
+#fullscreen-toggle {
+    background: transparent;
+    border: 1px solid white;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 2px 8px;
+    font-family: Arial, sans-serif;
+}
+
+#fullscreen-toggle:hover {
+    background: white;
+    color: black;
+}
+
+#fullscreen-toggle:active {
+    opacity: 0.7;
+}
+
+/* ============================================ */
+/* MOBILE VIRTUAL CONTROLS */
+/* ============================================ */
+
+#mobile-controls {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 100;
+}
+
+/* Show on touch devices only */
+@media (pointer: coarse) {
+    #mobile-controls {
+        display: block;
+    }
+}
+
+/* Control zones */
+.control-zone {
+    position: absolute;
+    bottom: 30px;
+    width: 45%;
+    height: 180px;
+    pointer-events: auto;
+}
+
+.control-zone.left {
+    left: 20px;
+}
+
+.control-zone.right {
+    right: 20px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+}
+
+/* Virtual Joystick Base */
+#joystick-base {
+    position: absolute;
+    width: 120px;
+    height: 120px;
+    border: 3px solid rgba(255, 255, 255, 0.4);
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.3);
+    left: 0;
+    top: 30px;
+}
+
+/* Virtual Joystick Stick */
+#joystick-stick {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    border: 3px solid rgba(255, 255, 255, 0.7);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.4);
+    left: 30px;
+    top: 60px;
+    transition: all 0.05s ease-out;
+}
+
+/* Fire Button */
+#fire-button {
+    position: absolute;
+    width: 110px;
+    height: 110px;
+    border: 3px solid rgba(255, 255, 255, 0.7);
+    border-radius: 50%;
+    background: rgba(255, 50, 50, 0.2);
+    color: white;
+    font-size: 40px;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: all 0.1s;
+    user-select: none;
+    top: 30px;
+    right: 0;
+}
+
+#fire-button:active {
+    background: rgba(255, 50, 50, 0.7);
+    transform: scale(0.9);
+    border-color: rgba(255, 255, 255, 0.9);
 }

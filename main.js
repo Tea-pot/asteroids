@@ -149,6 +149,17 @@ var debriLastSpawn = 0;
 var fieldRange;
 var score = 0;
 var isPlay = false;
+// Touch control state variables
+var isTouchDevice = false; // Tracks if user is using touch (vs mouse)
+var touchStartX = 0; // Starting X coordinate of touch
+var touchStartY = 0; // Starting Y coordinate of touch
+var touchStartTime = 0; // Timestamp when touch began
+var touchMoved = false; // Flag to distinguish tap from drag
+// Virtual joystick state
+var joystickActive = false; // Is joystick being used
+var joystickCenter = { x: 0, y: 0 }; // Center position of joystick
+var joystickRadius = 60; // Max distance from center (half of base size: 120/2)
+var joystickCurrentPos = { x: 0, y: 0 }; // Current stick offset from center
 var dom = {
   menu: null,
   title: null,
@@ -158,7 +169,8 @@ var dom = {
   score: null,
   wepon: null,
   ammoChart: null,
-  ammoContainer: null
+  ammoContainer: null,
+  fullscreenToggle: null
 };
 var gamepad = null;
 var gamepadIndex = null;
@@ -215,19 +227,25 @@ function init() {
   dom.wepon = document.getElementById('wepon');
   dom.ammoChart = document.getElementById('ammo-chart');
   dom.ammoContainer = document.getElementById('ammo-container');
+  dom.fullscreenToggle = document.getElementById('fullscreen-toggle');
 
   dom.start.addEventListener('click', start, false);
+  dom.fullscreenToggle.addEventListener('click', toggleFullscreen, false);
   canvas.addEventListener('mousemove', mouseMove, false);
   canvas.addEventListener('mousedown', mouseDown, false);
   canvas.addEventListener('mouseup', mouseUp, false);
   canvas.addEventListener('click', click, false);
 
+  // Touch event listeners - separate from mouse for tap/drag detection
+  canvas.addEventListener('touchstart', touchStart, false);
   canvas.addEventListener('touchmove', touchMove, false);
-  canvas.addEventListener('touchstart', mouseDown, false);
-  canvas.addEventListener('touchend', mouseUp, false);
+  canvas.addEventListener('touchend', touchEnd, false);
 
   window.addEventListener('gamepadconnected', gamepadConnected, false);
   window.addEventListener('gamepaddisconnected', gamepadDisconnected, false);
+
+  // Initialize mobile virtual controls
+  initMobileControls();
 
   debris = new Collection();
   for (var i = 0; i < 30; i++) {
@@ -255,6 +273,12 @@ function start(e) {
   play();
   dom.menu.style.display = 'none';
   e.preventDefault();
+  
+  // Request fullscreen on game start
+  requestFullscreen();
+  
+  // Try to lock orientation to landscape
+  lockOrientation();
 }
 
 function mouseMove(e) {
@@ -262,19 +286,216 @@ function mouseMove(e) {
     mouse.set(e.clientX, e.clientY);
   }
 }
-function touchMove(e) {
-  if (!gamepad) {
-    mouse.set(e.touches[0].clientX, e.touches[0].clientY);
-  }
-}
+
 function mouseDown(e) {
   isMouseDown = true;
 }
+
 function mouseUp(e) {
   isMouseDown = false;
 }
+
 function click(e) {
   if (ship) ship.fire(beams);
+}
+
+//------------------------------------
+// TOUCH EVENT HANDLERS
+//------------------------------------
+
+function touchStart(e) {
+  e.preventDefault(); // Prevent mouse event emulation
+  if (!gamepad) {
+    isTouchDevice = true;
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    touchStartTime = Date.now();
+    touchMoved = false;
+    // Set initial ship target position
+    mouse.set(touchStartX, touchStartY);
+  }
+}
+
+function touchMove(e) {
+  e.preventDefault(); // Prevent scrolling and mouse event emulation
+  if (!gamepad) {
+    var currentX = e.touches[0].clientX;
+    var currentY = e.touches[0].clientY;
+    
+    // Calculate distance moved from touch start
+    var dx = currentX - touchStartX;
+    var dy = currentY - touchStartY;
+    var distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // If moved more than 10px, it's a drag not a tap
+    if (distance > 10) {
+      touchMoved = true;
+    }
+    
+    // Update ship target position
+    mouse.set(currentX, currentY);
+  }
+}
+
+function touchEnd(e) {
+  e.preventDefault(); // Prevent mouse event emulation
+  if (!gamepad) {
+    var touchDuration = Date.now() - touchStartTime;
+    
+    // TAP detected: quick touch (< 200ms) without significant movement
+    // This fires the weapon once
+    if (!touchMoved && touchDuration < 200) {
+      if (ship) ship.fire(beams);
+    }
+    
+    // Reset touch state for next interaction
+    touchMoved = false;
+  }
+}
+
+//------------------------------------
+// FULLSCREEN FUNCTIONS
+//------------------------------------
+
+function requestFullscreen() {
+  var elem = document.documentElement;
+  
+  if (elem.requestFullscreen) {
+    elem.requestFullscreen().catch(function(err) {
+      console.log('Fullscreen request failed:', err);
+    });
+  } else if (elem.webkitRequestFullscreen) {
+    elem.webkitRequestFullscreen();
+  } else if (elem.mozRequestFullScreen) {
+    elem.mozRequestFullScreen();
+  } else if (elem.msRequestFullscreen) {
+    elem.msRequestFullscreen();
+  }
+}
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement && 
+      !document.webkitFullscreenElement && 
+      !document.mozFullScreenElement) {
+    // Enter fullscreen
+    requestFullscreen();
+  } else {
+    // Exit fullscreen
+    if (document.exitFullscreen) {
+      document.exitFullscreen();
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
+    } else if (document.mozCancelFullScreen) {
+      document.mozCancelFullScreen();
+    }
+  }
+}
+
+function lockOrientation() {
+  if (screen.orientation && screen.orientation.lock) {
+    screen.orientation.lock('landscape').catch(function(err) {
+      console.log('Orientation lock not supported or failed:', err);
+    });
+  }
+}
+
+//------------------------------------
+// MOBILE VIRTUAL CONTROLS
+//------------------------------------
+
+function initMobileControls() {
+  var joystickZone = document.getElementById('joystick-zone');
+  var fireButton = document.getElementById('fire-button');
+  
+  if (!joystickZone || !fireButton) return; // Not on mobile or elements missing
+  
+  var joystickBase = document.getElementById('joystick-base');
+  var joystickStick = document.getElementById('joystick-stick');
+  
+  // Joystick touch handlers
+  joystickZone.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    joystickActive = true;
+    isTouchDevice = true;
+    
+    // Set joystick center
+    var rect = joystickBase.getBoundingClientRect();
+    joystickCenter.x = rect.left + rect.width / 2;
+    joystickCenter.y = rect.top + rect.height / 2;
+    
+    handleJoystickMove(e);
+  }, false);
+  
+  joystickZone.addEventListener('touchmove', function(e) {
+    e.preventDefault();
+    if (joystickActive) handleJoystickMove(e);
+  }, false);
+  
+  joystickZone.addEventListener('touchend', function(e) {
+    e.preventDefault();
+    joystickActive = false;
+    
+    // Reset joystick stick to center position
+    joystickStick.style.left = '30px'; // (120 - 60) / 2
+    joystickStick.style.top = '60px';  // 30 + 30 (base top offset + half)
+    joystickCurrentPos.x = 0;
+    joystickCurrentPos.y = 0;
+    
+    // Reset ship target to current position
+    if (ship) mouse.set(ship.x, ship.y);
+  }, false);
+  
+  // Fire button handlers
+  fireButton.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (ship) ship.fire(beams);
+  }, false);
+  
+  // Prevent fire button from interfering with game
+  fireButton.addEventListener('touchend', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }, false);
+}
+
+function handleJoystickMove(e) {
+  var touch = e.touches[0];
+  var dx = touch.clientX - joystickCenter.x;
+  var dy = touch.clientY - joystickCenter.y;
+  var distance = Math.sqrt(dx * dx + dy * dy);
+  
+  // Clamp to joystick radius
+  if (distance > joystickRadius) {
+    dx = (dx / distance) * joystickRadius;
+    dy = (dy / distance) * joystickRadius;
+  }
+  
+  // Store current joystick position
+  joystickCurrentPos.x = dx;
+  joystickCurrentPos.y = dy;
+  
+  // Update joystick stick visual position
+  var joystickStick = document.getElementById('joystick-stick');
+  joystickStick.style.left = (30 + dx) + 'px'; // 30 is center offset (120-60)/2
+  joystickStick.style.top = (60 + dy) + 'px';  // 60 is center offset (30 base top + 30)
+  
+  // Calculate ship movement
+  // Normalize to -1..1 range
+  var normalizedX = dx / joystickRadius;
+  var normalizedY = dy / joystickRadius;
+  
+  // Update ship target position with smooth movement
+  if (ship) {
+    // Move ship in direction of joystick with scaled distance
+    var moveSpeed = 150; // Pixels to move at full joystick deflection
+    mouse.x = ship.x + normalizedX * moveSpeed;
+    mouse.y = ship.y + normalizedY * moveSpeed;
+    
+    // Clamp to screen bounds
+    mouse.x = Math.max(0, Math.min(canvasWidth, mouse.x));
+    mouse.y = Math.max(0, Math.min(canvasHeight, mouse.y));
+  }
 }
 
 //------------------------------------
@@ -366,8 +587,9 @@ function loop() {
           ship.fire(beams);
         }
       } else {
-        // Mouse/touch control
-        if (isMouseDown) ship.fire(beams);
+        // Mouse control - continuous fire on hold
+        // Touch devices use tap-to-fire (handled in touchEnd), not continuous
+        if (isMouseDown && !isTouchDevice) ship.fire(beams);
       }
 
       ship.update(mouse);
