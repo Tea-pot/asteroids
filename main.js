@@ -884,8 +884,12 @@ Ship.prototype = extend(new Point(), {
       }
     }
 
-    var angle = (this.angle = v.angle());
+    // Only update angle when moving to preserve facing direction
+    if (vlen > 0.1) {
+      this.angle = v.angle();
+    }
 
+    var angle = this.angle;
     var cos = Math.cos(angle);
     var sin = Math.sin(angle);
     var p, rp, dx, dy;
