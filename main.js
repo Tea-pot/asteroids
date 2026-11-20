@@ -106,8 +106,8 @@ var ITEM_SPEED = 0.5; // Item speed
 // UFO incidence rate 0 ~ 1
 var UFO_INCIDENCE = 0.0035;
 
-// Special weapon duration
-var SPECIAL_WEPON_TIME = 1000 * 20;
+// Special weapon ammo count
+var SPECIAL_WEPON_SHOTS = 50;
 
 // Score values
 var SCORE = {
@@ -156,7 +156,9 @@ var dom = {
   tweet: null,
   start: null,
   score: null,
-  wepon: null
+  wepon: null,
+  ammoChart: null,
+  ammoContainer: null
 };
 var gamepad = null;
 var gamepadIndex = null;
@@ -211,6 +213,8 @@ function init() {
   dom.start = document.getElementById('start');
   dom.score = document.getElementById('score');
   dom.wepon = document.getElementById('wepon');
+  dom.ammoChart = document.getElementById('ammo-chart');
+  dom.ammoContainer = document.getElementById('ammo-container');
 
   dom.start.addEventListener('click', start, false);
   canvas.addEventListener('mousemove', mouseMove, false);
@@ -271,6 +275,29 @@ function mouseUp(e) {
 }
 function click(e) {
   if (ship) ship.fire(beams);
+}
+
+//------------------------------------
+// UTILITY FUNCTIONS
+//------------------------------------
+
+function drawAmmoPieChart(ctx, x, y, radius, percentage) {
+  if (percentage <= 0) return; // Don't draw if empty
+  
+  ctx.save();
+  ctx.beginPath();
+  ctx.strokeStyle = 'white';
+  ctx.lineWidth = 1;
+  
+  // Start from top (-90 degrees) and go clockwise
+  var startAngle = -PI / 2;
+  var endAngle = startAngle + (TWO_PI * percentage);
+  
+  ctx.arc(x, y, radius, startAngle, endAngle);
+  ctx.lineTo(x, y); // Line to center
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
 }
 
 //------------------------------------
@@ -393,6 +420,17 @@ function loop() {
 
     dom.wepon.innerHTML = ship.currentWepon.name;
     dom.score.innerHTML = score;
+
+    // Update ammo pie chart
+    if (ship.currentWepon !== WEPON_DEFAULT && ship.shotsRemaining > 0) {
+      dom.ammoContainer.classList.add('active');
+      var ammoCtx = dom.ammoChart.getContext('2d');
+      ammoCtx.clearRect(0, 0, 24, 24);
+      var percentage = ship.shotsRemaining / SPECIAL_WEPON_SHOTS;
+      drawAmmoPieChart(ammoCtx, 12, 12, 10, percentage);
+    } else {
+      dom.ammoContainer.classList.remove('active');
+    }
   }
 
   // Draw
@@ -838,12 +876,12 @@ function Ship(x, y, size) {
 Ship.prototype = extend(new Point(), {
   angle: 0,
   possibleShooting: true,
-  specialWeponSetTime: 0,
+  shotsRemaining: 0,
   died: false,
   splinter: null,
 
   setSpecialWepon: function(wepon) {
-    this.specialWeponSetTime = new Date().getTime();
+    this.shotsRemaining = SPECIAL_WEPON_SHOTS;
     this.currentWepon = wepon;
   },
 
@@ -863,6 +901,14 @@ Ship.prototype = extend(new Point(), {
     var currentSpeed = this.latest.distanceTo(this);
     if (currentSpeed > SHIP_SPEED) currentSpeed = SHIP_SPEED;
     beam.speed += currentSpeed;
+
+    // Decrement ammo for special weapons
+    if (this.currentWepon !== WEPON_DEFAULT && this.shotsRemaining > 0) {
+      this.shotsRemaining--;
+      if (this.shotsRemaining <= 0) {
+        this.currentWepon = WEPON_DEFAULT;
+      }
+    }
 
     var self = this;
     setTimeout(function() {
@@ -911,10 +957,6 @@ Ship.prototype = extend(new Point(), {
       dy = rp.y - this.y;
       p.x = this.x + dx * cos - dy * sin;
       p.y = this.y + dx * sin + dy * cos;
-    }
-
-    if (new Date().getTime() - this.specialWeponSetTime > SPECIAL_WEPON_TIME) {
-      this.currentWepon = WEPON_DEFAULT;
     }
   },
 

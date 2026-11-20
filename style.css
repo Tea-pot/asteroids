@@ -8,7 +8,7 @@ body {
     font-size: 12px;
     font-family: Arial, Helvetica, sans-serif;
 }
-canvas {
+#c {
     cursor: crosshair;
     position: absolute;
 }
@@ -78,4 +78,19 @@ a#tweet:hover {
 #hud li {
     float: left;
     margin-right: 20px;
+    display: flex;
+    align-items: center;
+}
+
+#hud li.ammo {
+    display: none;
+}
+
+#hud li.ammo.active {
+    display: flex;
+    transform: translateY(-4px);
+}
+
+#ammo-chart {
+    display: block;
 }
