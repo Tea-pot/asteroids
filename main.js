@@ -401,9 +401,17 @@ function loop() {
   context.strokeStyle = 'rgb(255, 255, 255)';
   context.lineWidth = 1;
   if (ship) ship.draw(context);
-  if (ufo) ufo.draw(context);
   if (asteroids) asteroids.eachDraw(context);
   context.stroke();
+
+  // Draw UFO with custom color
+  if (ufo) {
+    context.beginPath();
+    context.strokeStyle = '#ffff99';
+    context.lineWidth = 1;
+    ufo.draw(context);
+    context.stroke();
+  }
 
   // Beam is drawn individually
   if (beams) beams.eachDraw(context);
