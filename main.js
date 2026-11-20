@@ -170,12 +170,14 @@ function gamepadConnected(e) {
   gamepad = e.gamepad;
   gamepadIndex = e.gamepad.index;
   console.log('Gamepad connected:', gamepad.id);
+  canvas.style.cursor = 'none';
 }
 
 function gamepadDisconnected(e) {
   if (gamepadIndex === e.gamepad.index) {
     gamepad = null;
     gamepadIndex = null;
+    canvas.style.cursor = 'crosshair';
     console.log('Gamepad disconnected');
   }
 }
