@@ -158,7 +158,8 @@ var dom = {
   score: null,
   wepon: null,
   ammoChart: null,
-  ammoContainer: null
+  ammoContainer: null,
+  fullscreenToggle: null
 };
 var gamepad = null;
 var gamepadIndex = null;
@@ -215,8 +216,10 @@ function init() {
   dom.wepon = document.getElementById('wepon');
   dom.ammoChart = document.getElementById('ammo-chart');
   dom.ammoContainer = document.getElementById('ammo-container');
+  dom.fullscreenToggle = document.getElementById('fullscreen-toggle');
 
   dom.start.addEventListener('click', start, false);
+  dom.fullscreenToggle.addEventListener('click', toggleFullscreen, false);
   canvas.addEventListener('mousemove', mouseMove, false);
   canvas.addEventListener('mousedown', mouseDown, false);
   canvas.addEventListener('mouseup', mouseUp, false);
@@ -255,6 +258,12 @@ function start(e) {
   play();
   dom.menu.style.display = 'none';
   e.preventDefault();
+  
+  // Request fullscreen on game start
+  requestFullscreen();
+  
+  // Try to lock orientation to landscape
+  lockOrientation();
 }
 
 function mouseMove(e) {
@@ -275,6 +284,52 @@ function mouseUp(e) {
 }
 function click(e) {
   if (ship) ship.fire(beams);
+}
+
+//------------------------------------
+// FULLSCREEN FUNCTIONS
+//------------------------------------
+
+function requestFullscreen() {
+  var elem = document.documentElement;
+  
+  if (elem.requestFullscreen) {
+    elem.requestFullscreen().catch(function(err) {
+      console.log('Fullscreen request failed:', err);
+    });
+  } else if (elem.webkitRequestFullscreen) {
+    elem.webkitRequestFullscreen();
+  } else if (elem.mozRequestFullScreen) {
+    elem.mozRequestFullScreen();
+  } else if (elem.msRequestFullscreen) {
+    elem.msRequestFullscreen();
+  }
+}
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement && 
+      !document.webkitFullscreenElement && 
+      !document.mozFullScreenElement) {
+    // Enter fullscreen
+    requestFullscreen();
+  } else {
+    // Exit fullscreen
+    if (document.exitFullscreen) {
+      document.exitFullscreen();
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
+    } else if (document.mozCancelFullScreen) {
+      document.mozCancelFullScreen();
+    }
+  }
+}
+
+function lockOrientation() {
+  if (screen.orientation && screen.orientation.lock) {
+    screen.orientation.lock('landscape').catch(function(err) {
+      console.log('Orientation lock not supported or failed:', err);
+    });
+  }
 }
 
 //------------------------------------

@@ -5,11 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ASTEROIDS</title>
     <link rel="stylesheet" href="style.css">
+    <!-- iOS Web App Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen">
+    <meta name="apple-mobile-web-app-title" content="Asteroids">
 </head>
 <body>
     <div id='container'>
         <canvas id='c'></canvas>
         <ul id='hud'>
+            <li class='fullscreen-btn'>
+                <button id='fullscreen-toggle' title='Toggle Fullscreen'>⛶</button>
+            </li>
             <li class='score'>SCORE: <span id='score'>0</span></li>
             <li class='weapon'>WEPON: <span id='wepon'>NORMAL BEAM</span></li>
             <li class='ammo' id='ammo-container'>
