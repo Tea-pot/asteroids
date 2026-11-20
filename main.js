@@ -106,8 +106,8 @@ var ITEM_SPEED = 0.5; // Item speed
 // UFO incidence rate 0 ~ 1
 var UFO_INCIDENCE = 0.0035;
 
-// Special weapon duration
-var SPECIAL_WEPON_TIME = 1000 * 20;
+// Special weapon ammo count
+var SPECIAL_WEPON_SHOTS = 50;
 
 // Score values
 var SCORE = {
@@ -156,8 +156,43 @@ var dom = {
   tweet: null,
   start: null,
   score: null,
-  wepon: null
+  wepon: null,
+  ammoChart: null,
+  ammoContainer: null
 };
+var gamepad = null;
+var gamepadIndex = null;
+var gamepadDeadzone = 0.15;
+
+//------------------------------------
+// GAMEPAD SUPPORT
+//------------------------------------
+
+function gamepadConnected(e) {
+  gamepad = e.gamepad;
+  gamepadIndex = e.gamepad.index;
+  console.log('Gamepad connected:', gamepad.id);
+  canvas.style.cursor = 'none';
+}
+
+function gamepadDisconnected(e) {
+  if (gamepadIndex === e.gamepad.index) {
+    gamepad = null;
+    gamepadIndex = null;
+    canvas.style.cursor = 'crosshair';
+    console.log('Gamepad disconnected');
+  }
+}
+
+function updateGamepad() {
+  if (gamepadIndex === null) return null;
+  var gamepads = navigator.getGamepads();
+  return gamepads[gamepadIndex];
+}
+
+function applyDeadzone(value) {
+  return Math.abs(value) < gamepadDeadzone ? 0 : value;
+}
 
 //------------------------------------
 // INITIALIZE
@@ -178,6 +213,8 @@ function init() {
   dom.start = document.getElementById('start');
   dom.score = document.getElementById('score');
   dom.wepon = document.getElementById('wepon');
+  dom.ammoChart = document.getElementById('ammo-chart');
+  dom.ammoContainer = document.getElementById('ammo-container');
 
   dom.start.addEventListener('click', start, false);
   canvas.addEventListener('mousemove', mouseMove, false);
@@ -188,6 +225,9 @@ function init() {
   canvas.addEventListener('touchmove', touchMove, false);
   canvas.addEventListener('touchstart', mouseDown, false);
   canvas.addEventListener('touchend', mouseUp, false);
+
+  window.addEventListener('gamepadconnected', gamepadConnected, false);
+  window.addEventListener('gamepaddisconnected', gamepadDisconnected, false);
 
   debris = new Collection();
   for (var i = 0; i < 30; i++) {
@@ -218,11 +258,14 @@ function start(e) {
 }
 
 function mouseMove(e) {
-  mouse.set(e.clientX, e.clientY);
+  if (!gamepad) {
+    mouse.set(e.clientX, e.clientY);
+  }
 }
 function touchMove(e) {
-  mouse.set(e.touches[0].clientX, e.touches[0].clientY);
-  console.log(e.touches[0].clientX, e.touches[0].clientY);
+  if (!gamepad) {
+    mouse.set(e.touches[0].clientX, e.touches[0].clientY);
+  }
 }
 function mouseDown(e) {
   isMouseDown = true;
@@ -235,6 +278,29 @@ function click(e) {
 }
 
 //------------------------------------
+// UTILITY FUNCTIONS
+//------------------------------------
+
+function drawAmmoPieChart(ctx, x, y, radius, percentage) {
+  if (percentage <= 0) return; // Don't draw if empty
+  
+  ctx.save();
+  ctx.beginPath();
+  ctx.strokeStyle = 'white';
+  ctx.lineWidth = 1;
+  
+  // Start from top (-90 degrees) and go clockwise
+  var startAngle = -PI / 2;
+  var endAngle = startAngle + (TWO_PI * percentage);
+  
+  ctx.arc(x, y, radius, startAngle, endAngle);
+  ctx.lineTo(x, y); // Line to center
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+}
+
+//------------------------------------
 // FRAME LOOP
 //------------------------------------
 
@@ -242,6 +308,13 @@ function loop() {
   context.clearRect(0, 0, canvasWidth, canvasHeight);
 
   var now = new Date().getTime();
+
+  // Check for START button press on menu screen
+  var gp = updateGamepad();
+  if (gp && !isPlay && gp.buttons[9] && gp.buttons[9].pressed) {
+    play();
+    dom.menu.style.display = 'none';
+  }
 
   // Spawn Debri
   if (now - debriLastSpawn > 300) {
@@ -253,6 +326,9 @@ function loop() {
   debris.eachUpdate();
 
   if (isPlay) {
+    // Poll gamepad state (already polled above for START button)
+    if (!gp) gp = updateGamepad();
+
     // Spawn
 
     if (now - asteroidLastSpawn > ASTEROID_SPAWN_TIME && asteroids.length < ASTEROID_MAX_NUM) {
@@ -267,7 +343,33 @@ function loop() {
     // Update
 
     if (ship) {
-      if (isMouseDown) ship.fire(beams);
+      if (gp) {
+        // Gamepad control
+        var leftX = applyDeadzone(gp.axes[0]);
+        var leftY = applyDeadzone(gp.axes[1]);
+
+        // Update mouse position based on left stick
+        if (leftX !== 0 || leftY !== 0) {
+          mouse.x += leftX * 8;
+          mouse.y += leftY * 8;
+
+          // Clamp to screen bounds
+          mouse.x = Math.max(0, Math.min(canvasWidth, mouse.x));
+          mouse.y = Math.max(0, Math.min(canvasHeight, mouse.y));
+        } else {
+          // Keep mouse at ship position when stick is centered
+          mouse.set(ship.x, ship.y);
+        }
+
+        // Fire with RT (button 7) or A button (button 0)
+        if (gp.buttons[0].pressed || gp.buttons[7].pressed) {
+          ship.fire(beams);
+        }
+      } else {
+        // Mouse/touch control
+        if (isMouseDown) ship.fire(beams);
+      }
+
       ship.update(mouse);
     }
 
@@ -318,6 +420,17 @@ function loop() {
 
     dom.wepon.innerHTML = ship.currentWepon.name;
     dom.score.innerHTML = score;
+
+    // Update ammo pie chart
+    if (ship.currentWepon !== WEPON_DEFAULT && ship.shotsRemaining > 0) {
+      dom.ammoContainer.classList.add('active');
+      var ammoCtx = dom.ammoChart.getContext('2d');
+      ammoCtx.clearRect(0, 0, 24, 24);
+      var percentage = ship.shotsRemaining / SPECIAL_WEPON_SHOTS;
+      drawAmmoPieChart(ammoCtx, 12, 12, 10, percentage);
+    } else {
+      dom.ammoContainer.classList.remove('active');
+    }
   }
 
   // Draw
@@ -326,9 +439,17 @@ function loop() {
   context.strokeStyle = 'rgb(255, 255, 255)';
   context.lineWidth = 1;
   if (ship) ship.draw(context);
-  if (ufo) ufo.draw(context);
   if (asteroids) asteroids.eachDraw(context);
   context.stroke();
+
+  // Draw UFO with custom color
+  if (ufo) {
+    context.beginPath();
+    context.strokeStyle = '#ffff99';
+    context.lineWidth = 1;
+    ufo.draw(context);
+    context.stroke();
+  }
 
   // Beam is drawn individually
   if (beams) beams.eachDraw(context);
@@ -374,26 +495,8 @@ function gameOver() {
   ship.destroy();
   isPlay = false;
   dom.title.innerHTML = 'GAME OVER!';
-  dom.message.innerHTML = 'YOUR SCORE ' + score + ' POINTS<br />';
-  dom.message.appendChild(tweetLink());
+  dom.message.innerHTML = 'YOUR SCORE ' + score + ' POINTS';
   dom.menu.style.display = 'block';
-}
-
-function tweetLink() {
-  var exc = score < 1000 ? '...' : score > 3000 ? '!!!' : '!';
-  if (!dom.tweet) {
-    dom.tweet = document.createElement('a');
-    dom.tweet.id = 'tweet';
-    dom.tweet.innerHTML = 'TWEET YOUR SCORE';
-  }
-  dom.tweet.href =
-    'https://twitter.com/intent/tweet?url=https://codepen.io/akm2/pen/eYYyELr&text=SCORE ' +
-    score +
-    ' PTS' +
-    exc +
-    ' - ASTEROIDS';
-  dom.tweet.target = '_blank';
-  return dom.tweet;
 }
 
 // Perform path collision detection.
@@ -773,12 +876,12 @@ function Ship(x, y, size) {
 Ship.prototype = extend(new Point(), {
   angle: 0,
   possibleShooting: true,
-  specialWeponSetTime: 0,
+  shotsRemaining: 0,
   died: false,
   splinter: null,
 
   setSpecialWepon: function(wepon) {
-    this.specialWeponSetTime = new Date().getTime();
+    this.shotsRemaining = SPECIAL_WEPON_SHOTS;
     this.currentWepon = wepon;
   },
 
@@ -798,6 +901,14 @@ Ship.prototype = extend(new Point(), {
     var currentSpeed = this.latest.distanceTo(this);
     if (currentSpeed > SHIP_SPEED) currentSpeed = SHIP_SPEED;
     beam.speed += currentSpeed;
+
+    // Decrement ammo for special weapons
+    if (this.currentWepon !== WEPON_DEFAULT && this.shotsRemaining > 0) {
+      this.shotsRemaining--;
+      if (this.shotsRemaining <= 0) {
+        this.currentWepon = WEPON_DEFAULT;
+      }
+    }
 
     var self = this;
     setTimeout(function() {
@@ -829,8 +940,12 @@ Ship.prototype = extend(new Point(), {
       }
     }
 
-    var angle = (this.angle = v.angle());
+    // Only update angle when moving to preserve facing direction
+    if (vlen > 0.1) {
+      this.angle = v.angle();
+    }
 
+    var angle = this.angle;
     var cos = Math.cos(angle);
     var sin = Math.sin(angle);
     var p, rp, dx, dy;
@@ -842,10 +957,6 @@ Ship.prototype = extend(new Point(), {
       dy = rp.y - this.y;
       p.x = this.x + dx * cos - dy * sin;
       p.y = this.y + dx * sin + dy * cos;
-    }
-
-    if (new Date().getTime() - this.specialWeponSetTime > SPECIAL_WEPON_TIME) {
-      this.currentWepon = WEPON_DEFAULT;
     }
   },
 
