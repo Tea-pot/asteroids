@@ -107,13 +107,11 @@ a#tweet:hover {
     font-family: Arial, sans-serif;
 }
 
-#fullscreen-toggle:hover {
-    background: white;
-    color: black;
-}
-
-#fullscreen-toggle:active {
-    opacity: 0.7;
+@media (hover: hover) {
+    #fullscreen-toggle:hover {
+        background: white;
+        color: black;
+    }
 }
 
 /* ============================================ */
