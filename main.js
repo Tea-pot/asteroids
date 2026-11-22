@@ -136,6 +136,8 @@ var canvasHeight;
 var context;
 var mouse;
 var isMouseDown = false;
+var isFirePressed = false; // Hold-to-fire state for fire button
+var isMobileWithControls = false; // True when mobile virtual controls are active
 var ship; // Ship
 var beams; // Collection of Beam
 var asteroids; // Collection of Asteroid
@@ -236,10 +238,19 @@ function init() {
   canvas.addEventListener('mouseup', mouseUp, false);
   canvas.addEventListener('click', click, false);
 
-  // Touch event listeners - separate from mouse for tap/drag detection
-  canvas.addEventListener('touchstart', touchStart, false);
-  canvas.addEventListener('touchmove', touchMove, false);
-  canvas.addEventListener('touchend', touchEnd, false);
+  // Detect mobile: virtual controls present + coarse pointer (touchscreen phone/tablet)
+  var mobileControls = document.getElementById('mobile-controls');
+  isMobileWithControls = mobileControls && window.matchMedia('(pointer: coarse)').matches;
+
+  if (isMobileWithControls) {
+    // Mobile: joystick + fire button are the only controls, mark as touch device
+    isTouchDevice = true;
+  } else {
+    // Desktop/laptop: attach canvas touch as fallback for touchscreen laptops
+    canvas.addEventListener('touchstart', touchStart, false);
+    canvas.addEventListener('touchmove', touchMove, false);
+    canvas.addEventListener('touchend', touchEnd, false);
+  }
 
   window.addEventListener('gamepadconnected', gamepadConnected, false);
   window.addEventListener('gamepaddisconnected', gamepadDisconnected, false);
@@ -407,7 +418,7 @@ function initMobileControls() {
   var joystickZone = document.getElementById('joystick-zone');
   var fireButton = document.getElementById('fire-button');
   
-  if (!joystickZone || !fireButton) return; // Not on mobile or elements missing
+  if (!joystickZone || !fireButton) return;
   
   var joystickBase = document.getElementById('joystick-base');
   var joystickStick = document.getElementById('joystick-stick');
@@ -418,7 +429,6 @@ function initMobileControls() {
     joystickActive = true;
     isTouchDevice = true;
     
-    // Set joystick center
     var rect = joystickBase.getBoundingClientRect();
     joystickCenter.x = rect.left + rect.width / 2;
     joystickCenter.y = rect.top + rect.height / 2;
@@ -431,32 +441,35 @@ function initMobileControls() {
     if (joystickActive) handleJoystickMove(e);
   }, false);
   
-  joystickZone.addEventListener('touchend', function(e) {
+  function resetJoystick(e) {
     e.preventDefault();
     joystickActive = false;
-    
-    // Reset joystick stick to center position
-    joystickStick.style.left = '30px'; // (120 - 60) / 2
-    joystickStick.style.top = '60px';  // 30 + 30 (base top offset + half)
+    joystickStick.style.left = '30px';
+    joystickStick.style.top = '60px';
     joystickCurrentPos.x = 0;
     joystickCurrentPos.y = 0;
-    
-    // Reset ship target to current position
     if (ship) mouse.set(ship.x, ship.y);
-  }, false);
+  }
   
-  // Fire button handlers
+  joystickZone.addEventListener('touchend', resetJoystick, false);
+  joystickZone.addEventListener('touchcancel', resetJoystick, false);
+  
+  // Fire button — hold-to-fire: set flag on press, clear on release
   fireButton.addEventListener('touchstart', function(e) {
     e.preventDefault();
     e.stopPropagation();
-    if (ship) ship.fire(beams);
+    isTouchDevice = true;
+    isFirePressed = true;
   }, false);
   
-  // Prevent fire button from interfering with game
-  fireButton.addEventListener('touchend', function(e) {
+  function releaseFire(e) {
     e.preventDefault();
     e.stopPropagation();
-  }, false);
+    isFirePressed = false;
+  }
+  
+  fireButton.addEventListener('touchend', releaseFire, false);
+  fireButton.addEventListener('touchcancel', releaseFire, false);
 }
 
 function handleJoystickMove(e) {
@@ -487,8 +500,8 @@ function handleJoystickMove(e) {
   
   // Update ship target position with smooth movement
   if (ship) {
-    // Move ship in direction of joystick with scaled distance
-    var moveSpeed = 150; // Pixels to move at full joystick deflection
+    // Move ship in direction of joystick, scaled to screen size
+    var moveSpeed = canvasHeight * 0.25;
     mouse.x = ship.x + normalizedX * moveSpeed;
     mouse.y = ship.y + normalizedY * moveSpeed;
     
@@ -565,31 +578,24 @@ function loop() {
 
     if (ship) {
       if (gp) {
-        // Gamepad control
+        // Gamepad stick movement
         var leftX = applyDeadzone(gp.axes[0]);
         var leftY = applyDeadzone(gp.axes[1]);
 
-        // Update mouse position based on left stick
         if (leftX !== 0 || leftY !== 0) {
           mouse.x += leftX * 8;
           mouse.y += leftY * 8;
-
-          // Clamp to screen bounds
           mouse.x = Math.max(0, Math.min(canvasWidth, mouse.x));
           mouse.y = Math.max(0, Math.min(canvasHeight, mouse.y));
         } else {
-          // Keep mouse at ship position when stick is centered
           mouse.set(ship.x, ship.y);
         }
+      }
 
-        // Fire with RT (button 7) or A button (button 0)
-        if (gp.buttons[0].pressed || gp.buttons[7].pressed) {
-          ship.fire(beams);
-        }
-      } else {
-        // Mouse control - continuous fire on hold
-        // Touch devices use tap-to-fire (handled in touchEnd), not continuous
-        if (isMouseDown && !isTouchDevice) ship.fire(beams);
+      // Unified fire check: fire button (touch), mouse hold, or gamepad buttons
+      var gpFire = gp && (gp.buttons[0].pressed || gp.buttons[7].pressed);
+      if (isFirePressed || gpFire || (isMouseDown && !isTouchDevice)) {
+        ship.fire(beams);
       }
 
       ship.update(mouse);
@@ -617,7 +623,7 @@ function loop() {
 
     beams.eachUpdate(function(index, beam) {
       for (var i = 0; i < asteroids.length; i++) {
-        asteroid = asteroids[i];
+        var asteroid = asteroids[i];
         if (hitDetection(beam, asteroid)) {
           score += asteroid.damage(beam.power, splinters);
           beam.notifyHit();
@@ -710,6 +716,7 @@ function play() {
   item = null;
   score = 0;
   isMouseDown = false;
+  isFirePressed = false;
   isPlay = true;
 }
 
@@ -733,11 +740,11 @@ function hitDetection(a, b) {
     b1,
     b2; // Points
 
-  for (i = 0, ilen = ap.segmentNum(); i < ilen; i++) {
+  for (var i = 0, ilen = ap.segmentNum(); i < ilen; i++) {
     as = ap.segment(i);
     a1 = as[0];
     a2 = as[1];
-    for (j = 0, jlen = bp.segmentNum(); j < jlen; j++) {
+    for (var j = 0, jlen = bp.segmentNum(); j < jlen; j++) {
       bs = bp.segment(j);
       b1 = bs[0];
       b2 = bs[1];
