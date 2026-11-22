@@ -281,15 +281,32 @@ function resize(e) {
 }
 
 function start(e) {
-  play();
   dom.menu.style.display = 'none';
   e.preventDefault();
   
-  // Request fullscreen on game start
+  // Request fullscreen and orientation lock
   requestFullscreen();
-  
-  // Try to lock orientation to landscape
   lockOrientation();
+  
+  // On mobile in portrait mode, predict landscape dimensions before starting
+  if (isMobileWithControls && canvasHeight > canvasWidth) {
+    // Screen will rotate: W and H will swap
+    var predictedWidth = canvasHeight;
+    var predictedHeight = canvasWidth;
+    
+    // Update canvas to predicted landscape dimensions
+    canvas.width = canvasWidth = fieldRange.right = predictedWidth;
+    canvas.height = canvasHeight = fieldRange.bottom = predictedHeight;
+    
+    // Reinitialize context
+    context = canvas.getContext('2d');
+    context.fillStyle = 'white';
+    context.strokeStyle = 'white';
+    context.lineWidth = 1;
+  }
+  
+  // Start game with correct dimensions
+  play();
 }
 
 function mouseMove(e) {
