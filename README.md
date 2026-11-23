@@ -2,7 +2,7 @@
 
 A classic Asteroids-style space shooter built with HTML5 Canvas, optimized for desktop and mobile with touch controls and gamepad support.
 
-## 🎮 How to Play
+## How to Play
 
 **Goal:** Survive as long as possible. Destroy asteroids and UFOs to score points.
 
@@ -28,7 +28,7 @@ A classic Asteroids-style space shooter built with HTML5 Canvas, optimized for d
 
 Press **START** to begin. Mobile automatically switches to fullscreen landscape mode.
 
-## 🚀 Features
+## Features
 
 - Pure HTML5/Canvas - no external dependencies
 - Responsive controls: mouse, touch, and gamepad support
@@ -37,7 +37,7 @@ Press **START** to begin. Mobile automatically switches to fullscreen landscape 
 - Special weapons with visual ammo indicator
 - Particle effects and smooth animations
 
-## 💻 Running Locally
+## Running Locally
 
 Simply open `index.html` in a modern web browser. No build process required.
 
@@ -50,24 +50,24 @@ cd asteroids
 open index.html
 ```
 
-## 📱 Mobile Setup
+## Mobile Setup
 
 For the best mobile experience:
 1. Add to home screen (iOS/Android)
 2. Launch from home screen icon
 3. Game will automatically enter fullscreen landscape mode
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - Vanilla JavaScript (ES5)
 - HTML5 Canvas API
 - CSS3 (media queries for responsive controls)
 - Gamepad API for controller support
 
-## 📄 License
+## License
 
 MIT License - feel free to use and modify as you like.
 
-## 🎯 Credits
+## Credits
 
-Based on the classic Atari Asteroids (1979). Built as a learning project for HTML5 game development.
+Based on the classic Atari Asteroids (1979), as a starting point some code-pen examples was used ( MIT licence ). Built as a learning project for HTML5 game development.
