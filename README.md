@@ -70,4 +70,4 @@ MIT License - feel free to use and modify as you like.
 
 ## Credits
 
-Based on the classic Atari Asteroids (1979), as a starting point some code-pen examples was used ( MIT licence ). Built as a learning project for HTML5 game development.
+Based on the classic Atari Asteroids (1979), as a starting point some code-pen examples was used ( MIT license ). Built as a learning project for HTML5 game development.
